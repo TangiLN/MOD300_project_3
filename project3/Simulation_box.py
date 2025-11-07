@@ -1,9 +1,9 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import random
+import matplotlib.pyplot as plt
+
 from Shapes import Point,Sphere
-# Code for the class that we are building
+
 class simulation_box:
     """ Class that represent the simulation box of the project"""
     def __init__(self,x_min,x_max,y_min,y_max,z_min,z_max):
@@ -22,7 +22,7 @@ class simulation_box:
         self.list_of_sphere=[]
         self.list_of_start_walker=[]
         self.set_of_valid_points= set() # Use of a set to avoid 
-
+        self.count_overlap_p=0
         self.number_of_points_in_sphere=0
         self.fig = None
         self.ax = None
@@ -41,34 +41,17 @@ class simulation_box:
         self.ax.set_ylabel('Y axis')
         self.ax.set_zlabel('Z axis')
         self.ax.set_title('3D Sphere in Simulation Box')
-
-    def random_point(self,n=1):
-        """
-        Generate n random points in the box, Function that correspond to TASK 1
-        Input : n number of points to generate
-        """
-        for i in range(n):
-            point=Point(np.random.uniform(self.size_x_min,self.size_x_max),
-                        np.random.uniform(self.size_y_min,self.size_y_max),
-                        np.random.uniform(self.size_z_min,self.size_z_max))
-            self.list_of_points.append(point)
-
-    #TODO ptet retirer cette fonction elle sert a rien 
-    def show_points(self):
-        """ Function that print all the points in the box, for debug purpose """
-        print("Number of point in the box :", len(self.list_of_points))
-        for p in self.list_of_points:
-            print(p)
-
     def create_random_sphere(self):
         """
         Create the data for a random sphere in the box and add it the list of sphere of the class
         TASK 2
         """
-        center= Point(np.random.uniform(self.size_x_min,self.size_x_max),
-                      np.random.uniform(self.size_y_min,self.size_y_max),
-                      np.random.uniform(self.size_z_min,self.size_z_max))
         radius= np.random.uniform(1,5)
+        center = Point(
+                    np.random.uniform(self.size_x_min + radius, self.size_x_max - radius),
+                    np.random.uniform(self.size_y_min + radius, self.size_y_max - radius),
+                    np.random.uniform(self.size_z_min + radius, self.size_z_max - radius)
+                )
         sphere=Sphere(center,radius)
         self.list_of_sphere.append(sphere)
 
@@ -108,12 +91,13 @@ class simulation_box:
             total_volume+=volume
         print ("---Analytical Volume Test Results ---")
         print("Volume of the box is :",self.volume_of_the_box)
-        print("The volume of the sphere are :",total_volume)
+        print("The volume of the sphere are :",total_volume-self.count_overlap_p)
         return total_volume
     def check_point_spot(self):
         """
         Check if the points are inside the sphere or not, Function that correspond to TASK 4 and TASK 7 and TASK 10
         """
+        self.number_of_points_in_sphere = 0
         for point in self.list_of_points:
             for sphere in self.list_of_sphere:
                 coord_x,coord_y,coord_z,radius=sphere.send_sphere_center()
@@ -140,8 +124,6 @@ class simulation_box:
         print("Estimated value of pi :", pi_estimate)
         print("Number of points inside the octant of sphere :", number_of_point_in)
         return pi_estimate
-
-
     def read_dna_coords(self):
         """ 
         Read the dna_coords.txt file and create spheres from the data, 
@@ -201,10 +183,33 @@ class simulation_box:
                 self.set_of_valid_points.add((int(walker.x),int(walker.y),int(walker.z)))
         print("Number of valid  point for the walker :", len(self.set_of_valid_points))
         estimated_sphere_volume=self.volume_of_the_box - len(self.set_of_valid_points)
-        print("Volume estimated of the sphere from the walker simulation :", self.volume_of_the_box - len(self.set_of_valid_points))
+        print("Volume estimated of the sphere from the walker simulation :", 
+                    self.volume_of_the_box - len(self.set_of_valid_points))
         return estimated_sphere_volume
-
-def launch_simulation(box_size=(1,1,1,1,1,1),number_of_point=100,number_of_sphere=1,specific_sphere=False,dna_simulation=False):
+    def overlap_stats(self):
+        """ 
+        Function to calculate the amount of sphere that are overlapping, 
+        that way we can approximate for the analytical volume value.
+        Output : The number of pair that are overlaping 
+        """
+        centers = []
+        radii = []
+        for s in self.list_of_sphere:
+            cx, cy, cz, r = s.send_sphere_center()
+            centers.append((cx, cy, cz)); radii.append(r)
+        centers = np.array(centers); radii = np.array(radii)
+        m = len(radii)
+        count_overlap = 0
+        for i in range(m):
+            d2 = np.sum((centers[i+1:] - centers[i])**2, axis=1)
+            rsum = radii[i] + radii[i+1:]
+            overlaps = np.sum(d2 <= rsum**2)
+            count_overlap += overlaps
+        print("Pairs overlapping:", count_overlap)
+        self.count_overlap_p=count_overlap
+        return count_overlap
+def launch_simulation(box_size=(1,1,1,1,1,1),number_of_point=100,number_of_sphere=1,
+                        specific_sphere=False,dna_simulation=False):
     """
     Function to launch a box simulation, to avoid duplicating code in the jupyter notebook
     Input : box_size -> the values of the edges of the box 
@@ -223,5 +228,20 @@ def launch_simulation(box_size=(1,1,1,1,1,1),number_of_point=100,number_of_spher
     box.generate_sphere(n=number_of_sphere,specific=specific_sphere)
     box.plot_points()
     box.plot_sphere()
-    box.check_point_spot()
+    if number_of_point != 0:
+        box.check_point_spot()
     return box
+
+def launch_walker_simulation(box_size=(1,1,1,1,1,1),number_of_walker=100,
+                             number_of_sphere=1):
+    """
+    Function to launch the walker method.
+    box_size -> the values of the edges of the box 
+            number_of_point -> number of random point to add to the simulation
+            number_of_sphere -> number of random sphere to add to the simulation
+    """
+    box=simulation_box(box_size[0],box_size[1],box_size[2],box_size[3],box_size[4],box_size[5])
+    box.generate_sphere(n=number_of_sphere,specific=False)
+    box.generate_starting_walker(n=number_of_walker)
+    box.start_walker_simulation(steps=100)
+    box.test_volume_sphere()
