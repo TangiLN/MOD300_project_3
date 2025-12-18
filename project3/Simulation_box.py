@@ -41,6 +41,16 @@ class simulation_box:
         self.ax.set_ylabel('Y axis')
         self.ax.set_zlabel('Z axis')
         self.ax.set_title('3D Sphere in Simulation Box')
+    def random_point(self,n=1):
+        """
+        Generate n random points in the box, Function that correspond to TASK 1
+        Input : n number of points to generate
+        """
+        for i in range(n):
+            point=Point(np.random.uniform(self.size_x_min,self.size_x_max),
+                        np.random.uniform(self.size_y_min,self.size_y_max),
+                        np.random.uniform(self.size_z_min,self.size_z_max))
+            self.list_of_points.append(point)
     def create_random_sphere(self):
         """
         Create the data for a random sphere in the box and add it the list of sphere of the class
